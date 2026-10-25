@@ -1,4 +1,4 @@
-import { auth, db, $, show, clean, alertBox, qrImg, makeQr, downloadDataUrl, localInputDate, dateText, makeId, makeGameId, validGameId, getError, watchVersion, ref, get, set, push, update, onValue, runTransaction, serverTimestamp, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from './common.js?v=1.0.8';
+import { auth, db, $, show, clean, alertBox, qrImg, makeQr, downloadDataUrl, localInputDate, dateText, makeId, getError, watchVersion, ref, get, set, push, update, onValue, runTransaction, serverTimestamp, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from './common.js?v=1.0.4';
 let user = null, allGames = {}, currentId = null, editingId = null, selectedMode = 'qr', entries = [], rewards = [], reader = null, dirty = false;
 const params = new URLSearchParams(location.search);
 const eventUrl = id => new URL('play.html?g=' + encodeURIComponent(id), location.href).href;
@@ -105,7 +105,7 @@ catch (e) {
     notify(getError(e), true);
 } }
 function blankEntry(n) { return { n, token: makeId(24), question: '', choices: ['', '', '', ''], correct: 1, choiceCount: 4, image: null }; }
-function resetEditor() { editingId = null; selectedMode = 'qr'; entries = Array.from({ length: 5 }, (_, i) => blankEntry(i + 1)); rewards = []; $('event-form').reset(); $('ev-count').value = 5; $('ev-end').value = localInputDate(Date.now() + 86400000); $('ev-mode').value = 'qr'; $('ev-prizes').value = 'none'; togglePrizes(); $('editor-title').textContent = 'イベント作成'; renderEntries(); renderRewards(); show('editor'); show('tools', false); dirty = false; focusEditorOnPhone(); }
+function resetEditor() { editingId = null; selectedMode = 'qr'; entries = Array.from({ length: 5 }, (_, i) => blankEntry(i + 1)); rewards = []; $('event-form').reset(); $('ev-count').value = 5; $('ev-end').value = localInputDate(Date.now() + 86400000); $('ev-mode').value = 'qr'; $('editor-title').textContent = 'イベント作成'; renderEntries(); renderRewards(); show('editor'); show('tools', false); dirty = false; }
 $('new-event').onclick = resetEditor;
 $('close-editor').onclick = () => { if (dirty && !confirm('未保存の変更があります。閉じますか？'))
     return; show('editor', false); dirty = false; };
@@ -230,118 +230,37 @@ function renderEntries() {
         area.append(el);
     });
 }
-function togglePrizes() {
-    show('prize-details', $('ev-prizes').value === 'yes');
-}
-function focusEditorOnPhone() {
-    // Scroll the form below the sticky header and iOS safe area.
-    if (window.innerWidth <= 650) requestAnimationFrame(() => $('editor').scrollIntoView({block: 'start', behavior: 'auto'}));
-}
-$('ev-prizes').addEventListener('change', () => { togglePrizes(); dirty = true; });
 function renderRewards() { const box = $('rewards'); box.replaceChildren(); rewards.forEach((r, i) => { const row = document.createElement('div'); row.className = 'reward-row'; const n = document.createElement('input'); n.type = 'number'; n.min = 0; n.max = 20; n.value = r.min; n.title = '正解数／取得数の下限'; n.oninput = () => { r.min = Number(n.value); dirty = true; }; const t = document.createElement('input'); t.placeholder = '景品名（空欄ならなし）'; t.maxLength = 80; t.value = r.name || ''; t.oninput = () => { r.name = t.value; dirty = true; }; const del = document.createElement('button'); del.type = 'button'; del.className = 'ghost'; del.textContent = '削除'; del.onclick = () => { rewards.splice(i, 1); dirty = true; renderRewards(); }; row.append(document.createTextNode('以上'), n, t, del); box.append(row); }); }
 $('add-reward').onclick = () => { rewards.push({ min: 0, name: '' }); renderRewards(); dirty = true; };
-$('event-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (!user) return notify('運営者としてログインしてください', true);
-    const saveButton = $('save-event');
-    if (saveButton.disabled) return;
-    const count = Number($('ev-count').value);
-    const endsAt = new Date($('ev-end').value).getTime();
-    const mode = $('ev-mode').value;
-    const name = $('ev-name').value.trim();
-    if (!name) return notify('ゲーム名を入力してください', true);
-    if (!Number.isInteger(count) || count < 1 || count > 20) return notify('ポイント数は1〜20にしてください', true);
-    if (!Number.isFinite(endsAt) || endsAt <= Date.now()) return notify('未来の終了日時を選択してください', true);
-    if (entries.length < count) return notify('ポイント数に対応する設定が不足しています', true);
-    if (mode === 'quiz' && entries.slice(0, count).some(x => !x.question.trim() || x.choices.slice(0, x.choiceCount).some(c => !c.trim()))) {
-        return notify('すべての問題文と選択肢を入力してください', true);
-    }
-    const hasRewards = $('ev-prizes').value === 'yes';
-    const activeRewards = hasRewards ? rewards.map(r => ({min: Number(r.min), name: String(r.name || '').trim()})) : [];
-    if (hasRewards && (!activeRewards.length || activeRewards.some(r => !r.name || !Number.isInteger(r.min) || r.min < 0 || r.min > count))) {
-        return notify('景品ありの場合、景品名と条件（0〜設定数）を入力してください', true);
-    }
-    let id = editingId;
-    const publicGame = {
-        ownerUid: user.uid,
-        name,
-        description: $('ev-desc').value.trim(),
-        mode,
-        count,
-        endsAt,
-        choiceCounts: {},
-        stampImages: {},
-        createdAt: Date.now()
-    };
-    const privateGame = {ownerUid: user.uid, entries: {}, rewards: activeRewards};
-    for (let i = 1; i <= count; i++) {
-        const item = entries[i - 1];
-        publicGame.choiceCounts[i] = mode === 'quiz' ? Number(item.choiceCount) : 0;
-        if (mode === 'qr') {
-            if (item.image) publicGame.stampImages[i] = item.image;
-            privateGame.entries[i] = {token: item.token, name: item.name || ''};
-        } else {
-            privateGame.entries[i] = {
-                question: item.question.trim(),
-                choices: item.choices.slice(0, item.choiceCount).map(v => v.trim()),
-                correct: Number(item.correct)
-            };
-        }
-    }
-    saveButton.disabled = true;
-    saveButton.textContent = '保存中…';
-    let saved = false;
-    try {
-        // RTDB rules require the public game to exist before the private record,
-        // and both records before the owner index. Keep the same id on retry.
-        if (!id) {
-            // 新規発行時のみトランザクションで重複IDを回避する。
-            // データが存在する場合は絶対に上書きせず、別の4桁IDを発行する。
-            for (let attempt = 0; attempt < 40; attempt++) {
-                const candidate = makeGameId();
-                const result = await runTransaction(
-                    ref(db, `games/${candidate}`),
-                    current => current === null ? publicGame : undefined,
-                    { applyLocally: false }
-                );
-                if (result.committed) {
-                    id = candidate;
-                    break;
-                }
-            }
-            if (!id) throw Error('重複しないゲームIDを発行できませんでした。もう一度保存してください');
-        } else {
-            // 既存イベントの編集（従来の28桁IDにも対応）
-            await set(ref(db, `games/${id}`), publicGame);
-        }
-        // この後の保存が失敗しても同じイベントを使って再試行する。
-        editingId = id;
-        await set(ref(db, `private/${id}`), privateGame);
-        await set(ref(db, `ownerEvents/${user.uid}/${id}`), true);
-        saved = true;
-        editingId = id;
-        dirty = false;
-    } catch (err) {
-        // Do not replace a partly saved event with a fresh ID on retry.
-        if (id) editingId = id;
-        notify('保存できません：' + getError(err) + '。入力内容は保持しています。', true);
-    } finally {
-        saveButton.disabled = false;
-        saveButton.textContent = 'イベントを保存';
-    }
-    if (!saved) return;
-    notify('イベントを保存しました');
+$('event-form').addEventListener('submit', async (e) => { e.preventDefault(); if (!user)
+    return; const count = Number($('ev-count').value); const endsAt = new Date($('ev-end').value).getTime(); if (!Number.isInteger(count) || count < 1 || count > 20)
+    return notify('ポイント数は1〜20にしてください', true); if (!Number.isFinite(endsAt) || endsAt <= Date.now())
+    return notify('未来の終了日時を選択してください', true); let mode = $('ev-mode').value; if (mode === 'quiz' && entries.some(x => !x.question.trim() || x.choices.slice(0, x.choiceCount).some(c => !c.trim())))
+    return notify('すべての問題文と選択肢を入力してください', true); const id = editingId || makeId(14); const publicGame = { ownerUid: user.uid, name: $('ev-name').value.trim(), description: $('ev-desc').value.trim(), mode, count, endsAt, choiceCounts: {}, stampImages: {}, createdAt: Date.now() }; for (let i = 1; i <= count; i++) {
+    publicGame.choiceCounts[i] = mode === 'quiz' ? entries[i - 1].choiceCount : 0;
+    if (mode === 'qr' && entries[i - 1].image)
+        publicGame.stampImages[i] = entries[i - 1].image;
+} const def = { ownerUid: user.uid, entries: {}, rewards: rewards.filter(r => r.name.trim()).map(r => ({ min: r.min, name: r.name.trim() })) }; for (let i = 1; i <= count; i++) {
+    const item = entries[i - 1];
+    def.entries[i] = mode === 'qr' ? { token: item.token, name: item.name || '' } : { question: item.question, choices: item.choices.slice(0, item.choiceCount), correct: item.correct };
+} ; }, $('save-event').disabled = true);
+try {
+    await set(ref(db, `games/${id}`), publicGame);
+    await set(ref(db, `private/${id}`), def);
+    await set(ref(db, `ownerEvents/${user.uid}/${id}`), true);
+    dirty = false;
     show('editor', false);
-    try {
-        await refreshList();
-        await openTools(id);
-    } catch (err) {
-        // The event was already committed; a failure loading the next view
-        // must never be reported as a failed save.
-        notify('イベントは保存されましたが、管理画面の更新に失敗しました：' + getError(err), true);
-        show('tools', false);
-    }
-});
+    notify('保存しました');
+    await refreshList();
+    await openTools(id);
+}
+catch (err) {
+    notify('保存できません：' + getError(err), true);
+}
+finally {
+    $('save-event').disabled = false;
+}
+;
 async function editGame() { if (!currentId)
     return; try {
     const [a, b] = await Promise.all([get(ref(db, `games/${currentId}`)), get(ref(db, `private/${currentId}`))]);
@@ -356,15 +275,12 @@ async function editGame() { if (!currentId)
     $('ev-end').value = localInputDate(g.endsAt);
     entries = Array.from({ length: g.count }, (_, idx) => { var _a, _b; const n = idx + 1, z = p.entries[n] || {}; return { n, token: z.token || makeId(24), name: z.name || '', image: ((_a = g.stampImages) === null || _a === void 0 ? void 0 : _a[n]) || null, question: z.question || '', choices: [...(z.choices || []), '', '', '', ''].slice(0, 4), correct: z.correct || 1, choiceCount: ((_b = g.choiceCounts) === null || _b === void 0 ? void 0 : _b[n]) || 4 }; });
     rewards = p.rewards || [];
-    $('ev-prizes').value = rewards.length ? 'yes' : 'none';
-    togglePrizes();
     renderEntries();
     renderRewards();
     $('editor-title').textContent = 'イベント編集';
     show('editor');
     show('tools', false);
     dirty = false;
-    focusEditorOnPhone();
 }
 catch (e) {
     notify(getError(e), true);
@@ -375,7 +291,6 @@ async function openTools(id) { try {
     if (!s.exists())
         throw Error('ゲームが見つかりません');
     currentId = id;
-    resetDeleteConfirmation();
     const game = s.val();
     $('tools-title').textContent = game.name;
     $('tools-meta').textContent = `${labelMode(game.mode)} ／ ${game.count}個 ／ ${dateText(game.endsAt)}終了`;
@@ -390,145 +305,9 @@ async function openTools(id) { try {
 catch (e) {
     notify(getError(e), true);
 } }
-// Permanent deletion is an atomic multi-location RTDB update. The RTDB rules
-// authorize a deletion only for the email/password owner of the game.
-function resetDeleteConfirmation() {
-    $('delete-confirm-id').value = '';
-    $('confirm-delete').disabled = true;
-    show('delete-confirmation', false);
-    $('request-delete').disabled = false;
-}
-$('request-delete').onclick = () => {
-    if (!currentId || !user) return notify('イベントを選択してログインしてください', true);
-    $('delete-game-id').textContent = currentId;
-    $('delete-game-name').textContent = $('tools-title').textContent;
-    $('delete-confirm-id').value = '';
-    $('confirm-delete').disabled = true;
-    show('delete-confirmation');
-    $('delete-confirm-id').focus();
-};
-$('delete-confirm-id').addEventListener('input', () => {
-    $('confirm-delete').disabled = !$('delete-confirm-id').value.trim() ||
-        $('delete-confirm-id').value.trim().toLowerCase() !== currentId;
-});
-$('cancel-delete').onclick = resetDeleteConfirmation;
-$('confirm-delete').onclick = async () => {
-    const id = currentId;
-    if (!id || !user || user.isAnonymous ||
-        $('delete-confirm-id').value.trim().toLowerCase() !== id) return;
-    if (!confirm(`「${$('tools-title').textContent}」（ゲームID：${id}）を完全に削除します。\n参加者データ・回答・景品受付履歴も消え、元に戻せません。\n削除してよろしいですか？`)) return;
-    const button = $('confirm-delete');
-    button.disabled = true;
-    $('request-delete').disabled = true;
-    button.textContent = '削除中…';
-    try {
-        // Re-check ownership on the latest server data (not just what is rendered).
-        const gameSnap = await get(ref(db, `games/${id}`));
-        if (!gameSnap.exists()) throw Error('イベントが見つかりません。すでに削除された可能性があります');
-        if (gameSnap.val().ownerUid !== user.uid) throw Error('このイベントを削除する権限がありません');
-        // One atomic commit: no partial deletion if any rule denies a path.
-        await update(ref(db), {
-            [`stamps/${id}`]: null,
-            [`answers/${id}`]: null,
-            [`redemptions/${id}`]: null,
-            [`private/${id}`]: null,
-            [`ownerEvents/${user.uid}/${id}`]: null,
-            [`games/${id}`]: null
-        });
-        currentId = null;
-        editingId = null;
-        dirty = false;
-        show('tools', false);
-        show('editor', false);
-        resetDeleteConfirmation();
-        // Avoid reopening a deleted game from an old result-QR URL.
-        const url = new URL(location.href);
-        url.searchParams.delete('g');
-        url.searchParams.delete('u');
-        history.replaceState(null, '', url.href);
-        notify(`イベント「${gameSnap.val().name}」を完全に削除しました`);
-        try {
-            await refreshList();
-        } catch (error) {
-            notify('削除は完了しました。イベント一覧の再読み込みに失敗しました：' + getError(error), true);
-        }
-    } catch (error) {
-        let hint = String(error && error.code || '').includes('permission-denied') ?
-            ' Firebaseルール v1.0.8 を公開したか確認してください。' : '';
-        notify('削除できません：' + getError(error) + hint, true);
-    } finally {
-        button.textContent = '完全に削除する';
-        // In case the deletion failed, permit retry without retyping ID.
-        if (currentId === id) {
-            button.disabled = $('delete-confirm-id').value.trim().toLowerCase() !== id;
-            $('request-delete').disabled = false;
-        }
-    }
-};
-$('back-events').onclick = () => { resetDeleteConfirmation(); show('tools', false); currentId = null; refreshList(); };
-$('join-qr').onclick = () => {
-    if (!currentId) return;
-    const url = eventUrl(currentId), el = $('join-qr-area');
-    el.replaceChildren();
-    const h = document.createElement('h3'); h.textContent = '参加用QR・ゲームID';
-    const img = qrImg(url); img.alt = '参加用QRコード';
-    const label = document.createElement('p'); label.textContent = 'ゲームID';
-    const idText = document.createElement('div'); idText.className = 'game-id-display'; idText.textContent = currentId;
-    const p = document.createElement('p'); p.className = 'join-hint muted'; p.textContent = '参加者はこのQRを読み取るか、ゲームIDを手入力して参加できます。';
-    const b = document.createElement('button'); b.className = 'secondary'; b.type = 'button'; b.textContent = 'QRをPNG保存';
-    b.onclick = () => downloadDataUrl(img.src, 'RapoRon_参加用QR.png');
-    const pdfButton = document.createElement('button'); pdfButton.className = 'primary'; pdfButton.type = 'button';
-    pdfButton.textContent = 'QR＋ゲームIDをA4 PDF保存'; pdfButton.onclick = downloadJoinSheet;
-    const buttons = document.createElement('div'); buttons.className = 'actions'; buttons.append(b, pdfButton);
-    el.append(h, img, label, idText, p, buttons);
-    show('join-qr-area');
-};
-
-function createJoinSheet(game, id) {
-    const page = document.createElement('section');
-    page.style.cssText = 'width:794px;height:1123px;background:white;color:#182e50;box-sizing:border-box;padding:50px 53px;display:flex;flex-direction:column;align-items:center;text-align:center;font-family:system-ui,"Yu Gothic",sans-serif';
-    const title = document.createElement('h1'); title.textContent = game.name || 'RapoRon';
-    title.style.cssText = 'font-size:34px;margin:0 0 14px;max-width:680px;overflow-wrap:anywhere;line-height:1.35';
-    const description = document.createElement('p'); description.textContent = '参加用QRを読み取ってゲームに参加しよう！';
-    description.style.cssText = 'font-size:24px;font-weight:800;margin:0 0 28px';
-    const qr = qrImg(eventUrl(id)); qr.alt = '参加用QR';
-    qr.style.cssText = 'display:block;width:585px;height:585px;object-fit:contain;margin:0 auto 20px';
-    const idLabel = document.createElement('p'); idLabel.textContent = 'ゲームID';
-    idLabel.style.cssText = 'font-size:23px;font-weight:800;margin:3px 0';
-    const code = document.createElement('div'); code.textContent = id;
-    code.style.cssText = (id.length === 4 ? 'font-size:64px;letter-spacing:.16em;' : 'font-size:29px;letter-spacing:.15px;') + 'font-family:ui-monospace,Consolas,monospace;font-weight:900;overflow-wrap:anywhere;word-break:break-all;line-height:1.4;max-width:680px';
-    const note = document.createElement('p'); note.textContent = '読み取れない場合は、RapoRonの参加画面で上のゲームIDを入力してください。';
-    note.style.cssText = 'font-size:19px;line-height:1.5;margin:22px 0 0';
-    const foot = document.createElement('p'); foot.textContent = 'RapoRon  ·  © 2021–2026 Dobhar-chú';
-    foot.style.cssText = 'font-size:15px;color:#63748a;margin:auto 0 0';
-    page.append(title,description,qr,idLabel,code,note,foot);
-    return page;
-}
-async function downloadJoinSheet() {
-    if (!currentId) return;
-    const button = $('join-a4');
-    if (button.disabled) return;
-    button.disabled = true;
-    let page = null;
-    try {
-        if (!window.jspdf || !window.html2canvas) throw Error('PDF生成ライブラリが読み込めません');
-        const snap = await get(ref(db, `games/${currentId}`));
-        if (!snap.exists()) throw Error('イベントが見つかりません');
-        page = createJoinSheet(snap.val(), currentId);
-        page.style.position = 'fixed'; page.style.left = '-10000px'; page.style.top = '0';
-        document.body.append(page);
-        const img = page.querySelector('img');
-        if (img.decode) await img.decode();
-        const canvas = await html2canvas(page, {backgroundColor:'#fff',scale:2,useCORS:false});
-        const pdf = new jspdf.jsPDF({unit:'mm',format:'a4',orientation:'portrait'});
-        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 210, 297);
-        pdf.save('RapoRon_参加案内_' + currentId + '.pdf');
-        notify('参加用QRとゲームIDをA4 PDFに保存しました');
-    } catch(e) {
-        notify('参加案内PDFを作成できません：' + getError(e), true);
-    } finally { if (page) page.remove(); button.disabled = false; }
-}
-$('join-a4').onclick = downloadJoinSheet;
+$('back-events').onclick = () => { show('tools', false); currentId = null; refreshList(); };
+$('join-qr').onclick = () => { if (!currentId)
+    return; const url = eventUrl(currentId), el = $('join-qr-area'); el.replaceChildren(); const h = document.createElement('h3'); h.textContent = '参加者向けQR'; const img = qrImg(url); const p = document.createElement('p'); p.textContent = url; const b = document.createElement('button'); b.textContent = 'QRをPNG保存'; b.onclick = () => downloadDataUrl(img.src, 'RapoRon_参加用QR.png'); el.append(h, img, p, b); show('join-qr-area'); };
 function printablePanel(title, body) { const section = document.createElement('section'); section.style.cssText = 'width:730px;min-height:1000px;background:#fff;color:#182e50;padding:50px 56px;font-family:system-ui,"Yu Gothic",sans-serif;border:2px solid #e0e6ef;box-sizing:border-box'; const h = document.createElement('h1'); h.textContent = title; h.style.cssText = 'font-size:32px;border-bottom:5px solid #e35c79;padding-bottom:20px;margin:0 0 55px'; section.append(h, body); return section; }
 $('print-pdf').onclick = async () => { if (!currentId)
     return; const button = $('print-pdf'); button.disabled = true; try {
@@ -617,7 +396,7 @@ function resultParts(value) { try {
     if (url.pathname.split('/').pop() !== 'admin.html')
         return null;
     const g = url.searchParams.get('g'), u = url.searchParams.get('u');
-    if (!validGameId(g || '') || !/^[a-zA-Z0-9]{15,64}$/.test(u || ''))
+    if (!/^[a-f0-9]{28}$/.test(g || '') || !/^[a-zA-Z0-9]{15,64}$/.test(u || ''))
         return null;
     return { g, u };
 }
