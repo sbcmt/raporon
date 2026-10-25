@@ -6,3 +6,14 @@
 .topbar .brand span{flex:none}
 .auth-hint{font-size:.79rem;line-height:1.65;margin:20px 0 0}
 @media(max-width:650px){.topbar .brand .brand-wordmark{width:125px;max-height:48px}.hero-wordmark{width:min(100%,370px)}}
+
+/* iOS standalone PWA: keep navigation and form headings out of the status-bar area. */
+.topbar{padding-top:max(9px,env(safe-area-inset-top,0px));padding-left:max(14px,env(safe-area-inset-left,0px));padding-right:max(14px,env(safe-area-inset-right,0px))}
+#editor{scroll-margin-top:calc(env(safe-area-inset-top,0px) + 22px)}
+@media(max-width:650px){#editor>.headline{align-items:flex-start}#editor>.headline h2{min-width:0;overflow-wrap:anywhere}#editor>.headline button{flex:none}#prize-details{margin-top:14px}}
+
+/* v1.0.5: keep the sticky header above the PWA status bar scroll layer.
+   Scrolling to the editor now leaves the complete heading and close button visible. */
+.topbar{position:sticky;top:0;z-index:35;min-height:65px}
+#editor{scroll-margin-top:calc(85px + env(safe-area-inset-top,0px))}
+html{scroll-padding-top:calc(85px + env(safe-area-inset-top,0px))}
