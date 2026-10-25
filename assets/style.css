@@ -7,36 +7,60 @@
 .auth-hint{font-size:.79rem;line-height:1.65;margin:20px 0 0}
 @media(max-width:650px){.topbar .brand .brand-wordmark{width:125px;max-height:48px}.hero-wordmark{width:min(100%,370px)}}
 
-/* v1.0.4: イベント作成フォームの終了日時が列幅からはみ出さないよう調整。
-   datetime-local を含む全入力欄を同一のグリッド幅に固定する。 */
+/* v1.0.6 iPhone Safari 対策: 入力欄そのもののネイティブ最小幅に依存しない。
+   終了日時の外枠を他の入力欄と同じグリッドの100%で描き、ブラウザ内蔵の
+   日付・時間ピッカーは枠の内部だけで表示する。 */
+#event-form .grid2 {
+  width: 100%;
+  min-width: 0;
+}
 #event-form .grid2 > label {
   display: block;
   min-width: 0;
-  width: 100%;
   max-width: 100%;
 }
 #event-form .grid2 > label > input,
 #event-form .grid2 > label > select {
   display: block;
-  box-sizing: border-box;
-  min-width: 0;
   width: 100%;
   max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+/* The *visible* border is the wrapper, not Safari's intrinsic date input. */
+#event-form .datetime-shell {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  margin: .25rem 0 0;
+  border: 1px solid #b9c8dc;
+  background: #fff;
+  border-radius: 10px;
+  overflow: hidden;
 }
 #event-form #ev-end {
-  min-width: 0;
-  max-width: 100%;
+  display: block;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  margin: 0;
+  padding: calc(.76rem - 1px) .76rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-sizing: border-box;
+  font: inherit;
+  color: #172844;
+  text-align: left;
 }
-
-/* v1.0.5: native datetime picker has a larger intrinsic size on some mobile browsers.
-   Keep its used border box identical to the number field, without altering the controls. */
-#event-form .grid2 { width: 100%; min-width: 0; }
-#event-form .grid2 > label { width: 100%; min-width: 0; max-width: 100%; overflow: hidden; }
-#event-form .grid2 input,
-#event-form .grid2 select { display: block; box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; }
-#ev-end { width: 100% !important; min-width: 0 !important; max-width: 100% !important; font-size: 16px; }
-#ev-end::-webkit-datetime-edit { min-width: 0; max-width: 100%; overflow: hidden; }
-#ev-end::-webkit-calendar-picker-indicator { flex: 0 0 auto; }
+#event-form .datetime-shell:focus-within {
+  outline: 2px solid #93c4e5;
+  outline-offset: 1px;
+}
+#event-form #ev-end:focus { outline: none; }
+#event-form #ev-end::-webkit-datetime-edit { min-width: 0; }
 .danger-outline { background: #fff5f5; color: #b12e3a; border: 1px solid #e9b6bd; }
 .danger-outline:hover { background:#ffe3e7; }
 .danger { background:#b52f3e; color:#fff; }
