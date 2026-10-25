@@ -1,4 +1,4 @@
-import { auth, db, $, show, clean, alertBox, qrImg, ref, get, set, onValue, serverTimestamp, onAuthStateChanged, signInAnonymously, makeQr, watchVersion, getError, validGameId } from './common.js?v=1.0.7';
+import { auth, db, $, show, clean, alertBox, qrImg, ref, get, set, onValue, serverTimestamp, onAuthStateChanged, signInAnonymously, makeQr, watchVersion, getError, validGameId } from './common.js?v=1.0.8';
 const params = new URLSearchParams(location.search);
 const gid = params.get('g'), station = Number(params.get('s')), token = params.get('t');
 let uid = null, game = null, stamps = {}, submission = null, redeem = null, busy = false, quizDraft = {}, reader = null, unsub = [];

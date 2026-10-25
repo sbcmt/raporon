@@ -19,7 +19,7 @@
 html{scroll-padding-top:calc(85px + env(safe-area-inset-top,0px))}
 
 
-/* v1.0.7: iOS datetime-local controls have an intrinsic min width.
+/* v1.0.8: iOS datetime-local controls have an intrinsic min width.
    Allow every grid cell and control to shrink inside the editor card. */
 #event-form,#event-form .grid2,#event-form .grid2>label{min-width:0;max-width:100%}
 #event-form .grid2>label{width:100%;display:block}
@@ -37,6 +37,16 @@ html{scroll-padding-top:calc(85px + env(safe-area-inset-top,0px))}
 .join-buttons{display:grid;gap:8px}
 @media(max-width:650px){.game-id-display{font-size:1rem}#editor{overflow-wrap:break-word}}
 
-/* v1.0.7 : 短い4桁のゲームIDをわかりやすく表示 */
+/* v1.0.8 : 短い4桁のゲームIDをわかりやすく表示 */
 .game-id-display{font-size:2.2rem;letter-spacing:.2em;word-break:normal;overflow-wrap:normal}
 @media(max-width:650px){.game-id-display{font-size:2rem;letter-spacing:.18em}}
+
+/* v1.0.8 - destructive event deletion is visually isolated */
+.delete-zone{margin-top:24px;border-top:1px solid #e9b6be;padding-top:20px}
+.delete-zone h3{color:#943045}
+.danger-outline{background:#fff;border:1.5px solid #bd4255;color:#a12b40}
+.danger-outline:hover{background:#fff0f2}
+.danger{background:#b83044;color:#fff}
+.danger:hover{background:#98263a}
+.delete-confirmation{border:1px solid #ebc0c8;background:#fff7f8;padding:16px;border-radius:13px;margin-top:14px}
+.delete-confirmation .actions button{flex:1 1 160px}

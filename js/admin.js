@@ -1,4 +1,4 @@
-import { auth, db, $, show, clean, alertBox, qrImg, makeQr, downloadDataUrl, localInputDate, dateText, makeId, makeGameId, getError, watchVersion, ref, get, set, push, update, onValue, runTransaction, serverTimestamp, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from './common.js?v=1.0.7';
+import { auth, db, $, show, clean, alertBox, qrImg, makeQr, downloadDataUrl, localInputDate, dateText, makeId, makeGameId, validGameId, getError, watchVersion, ref, get, set, push, update, onValue, runTransaction, serverTimestamp, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from './common.js?v=1.0.8';
 let user = null, allGames = {}, currentId = null, editingId = null, selectedMode = 'qr', entries = [], rewards = [], reader = null, dirty = false;
 const params = new URLSearchParams(location.search);
 const eventUrl = id => new URL('play.html?g=' + encodeURIComponent(id), location.href).href;
@@ -375,6 +375,7 @@ async function openTools(id) { try {
     if (!s.exists())
         throw Error('ゲームが見つかりません');
     currentId = id;
+    resetDeleteConfirmation();
     const game = s.val();
     $('tools-title').textContent = game.name;
     $('tools-meta').textContent = `${labelMode(game.mode)} ／ ${game.count}個 ／ ${dateText(game.endsAt)}終了`;
@@ -389,7 +390,82 @@ async function openTools(id) { try {
 catch (e) {
     notify(getError(e), true);
 } }
-$('back-events').onclick = () => { show('tools', false); currentId = null; refreshList(); };
+// Permanent deletion is an atomic multi-location RTDB update. The RTDB rules
+// authorize a deletion only for the email/password owner of the game.
+function resetDeleteConfirmation() {
+    $('delete-confirm-id').value = '';
+    $('confirm-delete').disabled = true;
+    show('delete-confirmation', false);
+    $('request-delete').disabled = false;
+}
+$('request-delete').onclick = () => {
+    if (!currentId || !user) return notify('イベントを選択してログインしてください', true);
+    $('delete-game-id').textContent = currentId;
+    $('delete-game-name').textContent = $('tools-title').textContent;
+    $('delete-confirm-id').value = '';
+    $('confirm-delete').disabled = true;
+    show('delete-confirmation');
+    $('delete-confirm-id').focus();
+};
+$('delete-confirm-id').addEventListener('input', () => {
+    $('confirm-delete').disabled = !$('delete-confirm-id').value.trim() ||
+        $('delete-confirm-id').value.trim().toLowerCase() !== currentId;
+});
+$('cancel-delete').onclick = resetDeleteConfirmation;
+$('confirm-delete').onclick = async () => {
+    const id = currentId;
+    if (!id || !user || user.isAnonymous ||
+        $('delete-confirm-id').value.trim().toLowerCase() !== id) return;
+    if (!confirm(`「${$('tools-title').textContent}」（ゲームID：${id}）を完全に削除します。\n参加者データ・回答・景品受付履歴も消え、元に戻せません。\n削除してよろしいですか？`)) return;
+    const button = $('confirm-delete');
+    button.disabled = true;
+    $('request-delete').disabled = true;
+    button.textContent = '削除中…';
+    try {
+        // Re-check ownership on the latest server data (not just what is rendered).
+        const gameSnap = await get(ref(db, `games/${id}`));
+        if (!gameSnap.exists()) throw Error('イベントが見つかりません。すでに削除された可能性があります');
+        if (gameSnap.val().ownerUid !== user.uid) throw Error('このイベントを削除する権限がありません');
+        // One atomic commit: no partial deletion if any rule denies a path.
+        await update(ref(db), {
+            [`stamps/${id}`]: null,
+            [`answers/${id}`]: null,
+            [`redemptions/${id}`]: null,
+            [`private/${id}`]: null,
+            [`ownerEvents/${user.uid}/${id}`]: null,
+            [`games/${id}`]: null
+        });
+        currentId = null;
+        editingId = null;
+        dirty = false;
+        show('tools', false);
+        show('editor', false);
+        resetDeleteConfirmation();
+        // Avoid reopening a deleted game from an old result-QR URL.
+        const url = new URL(location.href);
+        url.searchParams.delete('g');
+        url.searchParams.delete('u');
+        history.replaceState(null, '', url.href);
+        notify(`イベント「${gameSnap.val().name}」を完全に削除しました`);
+        try {
+            await refreshList();
+        } catch (error) {
+            notify('削除は完了しました。イベント一覧の再読み込みに失敗しました：' + getError(error), true);
+        }
+    } catch (error) {
+        let hint = String(error && error.code || '').includes('permission-denied') ?
+            ' Firebaseルール v1.0.8 を公開したか確認してください。' : '';
+        notify('削除できません：' + getError(error) + hint, true);
+    } finally {
+        button.textContent = '完全に削除する';
+        // In case the deletion failed, permit retry without retyping ID.
+        if (currentId === id) {
+            button.disabled = $('delete-confirm-id').value.trim().toLowerCase() !== id;
+            $('request-delete').disabled = false;
+        }
+    }
+};
+$('back-events').onclick = () => { resetDeleteConfirmation(); show('tools', false); currentId = null; refreshList(); };
 $('join-qr').onclick = () => {
     if (!currentId) return;
     const url = eventUrl(currentId), el = $('join-qr-area');
@@ -541,7 +617,7 @@ function resultParts(value) { try {
     if (url.pathname.split('/').pop() !== 'admin.html')
         return null;
     const g = url.searchParams.get('g'), u = url.searchParams.get('u');
-    if (!/^[a-f0-9]{28}$/.test(g || '') || !/^[a-zA-Z0-9]{15,64}$/.test(u || ''))
+    if (!validGameId(g || '') || !/^[a-zA-Z0-9]{15,64}$/.test(u || ''))
         return null;
     return { g, u };
 }
