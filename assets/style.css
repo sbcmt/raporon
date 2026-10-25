@@ -27,3 +27,22 @@
   min-width: 0;
   max-width: 100%;
 }
+
+/* v1.0.5: native datetime picker has a larger intrinsic size on some mobile browsers.
+   Keep its used border box identical to the number field, without altering the controls. */
+#event-form .grid2 { width: 100%; min-width: 0; }
+#event-form .grid2 > label { width: 100%; min-width: 0; max-width: 100%; overflow: hidden; }
+#event-form .grid2 input,
+#event-form .grid2 select { display: block; box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; }
+#ev-end { width: 100% !important; min-width: 0 !important; max-width: 100% !important; font-size: 16px; }
+#ev-end::-webkit-datetime-edit { min-width: 0; max-width: 100%; overflow: hidden; }
+#ev-end::-webkit-calendar-picker-indicator { flex: 0 0 auto; }
+.danger-outline { background: #fff5f5; color: #b12e3a; border: 1px solid #e9b6bd; }
+.danger-outline:hover { background:#ffe3e7; }
+.danger { background:#b52f3e; color:#fff; }
+.danger:hover { background:#952436; }
+.delete-dialog { margin:0; }
+.delete-game-name { font-weight:800; word-break:break-word; }
+.delete-dialog-actions { display:flex; justify-content:flex-end; gap:12px; flex-wrap:wrap; }
+.delete-dialog-actions button { min-width:120px; }
+@media(max-width:650px){ .delete-dialog-actions button { flex:1; } }

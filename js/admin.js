@@ -1,4 +1,4 @@
-import { auth, db, $, show, clean, alertBox, qrImg, makeQr, downloadDataUrl, localInputDate, dateText, makeId, getError, watchVersion, ref, get, set, push, update, onValue, runTransaction, serverTimestamp, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from './common.js?v=1.0.4';
+import { auth, db, $, show, clean, alertBox, qrImg, makeQr, downloadDataUrl, localInputDate, dateText, makeId, getError, watchVersion, ref, get, set, push, update, onValue, runTransaction, serverTimestamp, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from './common.js?v=1.0.5';
 let user = null, allGames = {}, currentId = null, editingId = null, selectedMode = 'qr', entries = [], rewards = [], reader = null, dirty = false;
 const params = new URLSearchParams(location.search);
 const eventUrl = id => new URL('play.html?g=' + encodeURIComponent(id), location.href).href;
@@ -232,35 +232,61 @@ function renderEntries() {
 }
 function renderRewards() { const box = $('rewards'); box.replaceChildren(); rewards.forEach((r, i) => { const row = document.createElement('div'); row.className = 'reward-row'; const n = document.createElement('input'); n.type = 'number'; n.min = 0; n.max = 20; n.value = r.min; n.title = '正解数／取得数の下限'; n.oninput = () => { r.min = Number(n.value); dirty = true; }; const t = document.createElement('input'); t.placeholder = '景品名（空欄ならなし）'; t.maxLength = 80; t.value = r.name || ''; t.oninput = () => { r.name = t.value; dirty = true; }; const del = document.createElement('button'); del.type = 'button'; del.className = 'ghost'; del.textContent = '削除'; del.onclick = () => { rewards.splice(i, 1); dirty = true; renderRewards(); }; row.append(document.createTextNode('以上'), n, t, del); box.append(row); }); }
 $('add-reward').onclick = () => { rewards.push({ min: 0, name: '' }); renderRewards(); dirty = true; };
-$('event-form').addEventListener('submit', async (e) => { e.preventDefault(); if (!user)
-    return; const count = Number($('ev-count').value); const endsAt = new Date($('ev-end').value).getTime(); if (!Number.isInteger(count) || count < 1 || count > 20)
-    return notify('ポイント数は1〜20にしてください', true); if (!Number.isFinite(endsAt) || endsAt <= Date.now())
-    return notify('未来の終了日時を選択してください', true); let mode = $('ev-mode').value; if (mode === 'quiz' && entries.some(x => !x.question.trim() || x.choices.slice(0, x.choiceCount).some(c => !c.trim())))
-    return notify('すべての問題文と選択肢を入力してください', true); const id = editingId || makeId(14); const publicGame = { ownerUid: user.uid, name: $('ev-name').value.trim(), description: $('ev-desc').value.trim(), mode, count, endsAt, choiceCounts: {}, stampImages: {}, createdAt: Date.now() }; for (let i = 1; i <= count; i++) {
-    publicGame.choiceCounts[i] = mode === 'quiz' ? entries[i - 1].choiceCount : 0;
-    if (mode === 'qr' && entries[i - 1].image)
-        publicGame.stampImages[i] = entries[i - 1].image;
-} const def = { ownerUid: user.uid, entries: {}, rewards: rewards.filter(r => r.name.trim()).map(r => ({ min: r.min, name: r.name.trim() })) }; for (let i = 1; i <= count; i++) {
-    const item = entries[i - 1];
-    def.entries[i] = mode === 'qr' ? { token: item.token, name: item.name || '' } : { question: item.question, choices: item.choices.slice(0, item.choiceCount), correct: item.correct };
-} ; }, $('save-event').disabled = true);
-try {
-    await set(ref(db, `games/${id}`), publicGame);
-    await set(ref(db, `private/${id}`), def);
-    await set(ref(db, `ownerEvents/${user.uid}/${id}`), true);
-    dirty = false;
-    show('editor', false);
-    notify('保存しました');
-    await refreshList();
-    await openTools(id);
-}
-catch (err) {
-    notify('保存できません：' + getError(err), true);
-}
-finally {
-    $('save-event').disabled = false;
-}
-;
+$('event-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!user) return notify('運営ログインが必要です', true);
+    const count = Number($('ev-count').value);
+    const endsAt = new Date($('ev-end').value).getTime();
+    if (!Number.isInteger(count) || count < 1 || count > 20)
+        return notify('ポイント／問題数は1〜20にしてください', true);
+    if (!Number.isFinite(endsAt) || endsAt <= Date.now())
+        return notify('未来の終了日時を選択してください', true);
+    const mode = $('ev-mode').value;
+    if (mode === 'quiz' && entries.some(x => !x.question.trim() || x.choices.slice(0, x.choiceCount).some(c => !c.trim())))
+        return notify('すべての問題文と選択肢を入力してください', true);
+    const id = editingId || makeId(14);
+    const saveButton = $('save-event');
+    saveButton.disabled = true;
+    try {
+        // Preserve the original creation time while editing an existing event.
+        const oldGame = editingId ? (await get(ref(db, `games/${id}`))).val() : null;
+        if (editingId && (!oldGame || oldGame.ownerUid !== user.uid))
+            throw Error('編集するイベントが見つからないか、管理権限がありません');
+        const publicGame = {
+            ownerUid: user.uid,
+            name: $('ev-name').value.trim(),
+            description: $('ev-desc').value.trim(),
+            mode, count, endsAt,
+            choiceCounts: {}, stampImages: {},
+            createdAt: oldGame?.createdAt || Date.now()
+        };
+        const def = {
+            ownerUid: user.uid,
+            entries: {},
+            rewards: rewards.filter(r => r.name.trim()).map(r => ({ min: Number(r.min), name: r.name.trim() }))
+        };
+        for (let i = 1; i <= count; i++) {
+            const item = entries[i - 1];
+            publicGame.choiceCounts[i] = mode === 'quiz' ? item.choiceCount : 0;
+            if (mode === 'qr' && item.image) publicGame.stampImages[i] = item.image;
+            def.entries[i] = mode === 'qr'
+                ? { token: item.token, name: item.name || '' }
+                : { question: item.question, choices: item.choices.slice(0, item.choiceCount), correct: item.correct };
+        }
+        await set(ref(db, `games/${id}`), publicGame);
+        await set(ref(db, `private/${id}`), def);
+        await set(ref(db, `ownerEvents/${user.uid}/${id}`), true);
+        dirty = false;
+        show('editor', false);
+        notify('保存しました');
+        await refreshList();
+        await openTools(id);
+    } catch (err) {
+        notify('保存できません：' + getError(err), true);
+    } finally {
+        saveButton.disabled = false;
+    }
+});
 async function editGame() { if (!currentId)
     return; try {
     const [a, b] = await Promise.all([get(ref(db, `games/${currentId}`)), get(ref(db, `private/${currentId}`))]);
@@ -286,6 +312,61 @@ catch (e) {
     notify(getError(e), true);
 } }
 $('edit-current').onclick = editGame;
+// Deleting an event requires an explicit confirmation, without entering its game ID.
+let deleting = false;
+$('delete-current').addEventListener('click', async () => {
+    if (!user || !currentId || deleting) return;
+    try {
+        const snapshot = await get(ref(db, `games/${currentId}`));
+        if (!snapshot.exists() || snapshot.val().ownerUid !== user.uid)
+            throw Error('削除対象が見つからないか、管理権限がありません');
+        $('delete-confirm-game').textContent = snapshot.val().name;
+        show('delete-confirm-modal');
+        $('cancel-delete').focus();
+    } catch (err) { notify('削除対象を確認できません：' + getError(err), true); }
+});
+$('cancel-delete').addEventListener('click', () => {
+    if (!deleting) show('delete-confirm-modal', false);
+});
+$('confirm-delete').addEventListener('click', async () => {
+    if (!user || !currentId || deleting) return;
+    deleting = true;
+    const id = currentId;
+    const confirmButton = $('confirm-delete');
+    confirmButton.disabled = true;
+    $('cancel-delete').disabled = true;
+    $('delete-current').disabled = true;
+    try {
+        const snapshot = await get(ref(db, `games/${id}`));
+        if (!snapshot.exists() || snapshot.val().ownerUid !== user.uid)
+            throw Error('削除対象が見つからないか、管理権限がありません');
+        // One atomic multi-location update; a failed permission check leaves data intact.
+        const paths = {
+            [`ownerEvents/${user.uid}/${id}`]: null,
+            [`private/${id}`]: null,
+            [`stamps/${id}`]: null,
+            [`answers/${id}`]: null,
+            [`redemptions/${id}`]: null,
+            [`games/${id}`]: null
+        };
+        await update(ref(db), paths);
+        show('delete-confirm-modal', false);
+        show('tools', false);
+        show('editor', false);
+        currentId = null;
+        notify('イベントを削除しました');
+        await refreshList();
+    } catch (err) {
+        notify('イベントを削除できません：' + getError(err), true);
+        show('delete-confirm-modal', false);
+    } finally {
+        deleting = false;
+        confirmButton.disabled = false;
+        $('cancel-delete').disabled = false;
+        $('delete-current').disabled = false;
+    }
+});
+
 async function openTools(id) { try {
     const s = await get(ref(db, `games/${id}`));
     if (!s.exists())
