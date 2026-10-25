@@ -19,7 +19,7 @@
 html{scroll-padding-top:calc(85px + env(safe-area-inset-top,0px))}
 
 
-/* v1.0.6: iOS datetime-local controls have an intrinsic min width.
+/* v1.0.7: iOS datetime-local controls have an intrinsic min width.
    Allow every grid cell and control to shrink inside the editor card. */
 #event-form,#event-form .grid2,#event-form .grid2>label{min-width:0;max-width:100%}
 #event-form .grid2>label{width:100%;display:block}
@@ -36,3 +36,7 @@ html{scroll-padding-top:calc(85px + env(safe-area-inset-top,0px))}
 .join-reader{margin:14px auto;max-width:430px;width:100%;min-height:0;overflow:hidden}
 .join-buttons{display:grid;gap:8px}
 @media(max-width:650px){.game-id-display{font-size:1rem}#editor{overflow-wrap:break-word}}
+
+/* v1.0.7 : 短い4桁のゲームIDをわかりやすく表示 */
+.game-id-display{font-size:2.2rem;letter-spacing:.2em;word-break:normal;overflow-wrap:normal}
+@media(max-width:650px){.game-id-display{font-size:2rem;letter-spacing:.18em}}
