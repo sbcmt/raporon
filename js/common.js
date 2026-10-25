@@ -1,7 +1,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js';
 import { getAuth, onAuthStateChanged, signInAnonymously, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js';
 import { getDatabase, ref, get, set, update, push, onValue, runTransaction, serverTimestamp, query, orderByChild, equalTo } from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-database.js';
-import { firebaseConfig, VERSION } from './config.js?v=1.0.5';
+import { firebaseConfig, VERSION } from './config.js?v=1.0.6';
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app), db = getDatabase(app);
 export { onAuthStateChanged, signInAnonymously, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, ref, get, set, update, push, onValue, runTransaction, serverTimestamp, query, orderByChild, equalTo };

@@ -1,4 +1,4 @@
-import { auth, db, $, show, clean, alertBox, qrImg, makeQr, downloadDataUrl, localInputDate, dateText, makeId, getError, watchVersion, ref, get, set, push, update, onValue, runTransaction, serverTimestamp, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from './common.js?v=1.0.5';
+import { auth, db, $, show, clean, alertBox, qrImg, makeQr, downloadDataUrl, localInputDate, dateText, makeId, getError, watchVersion, ref, get, set, push, update, onValue, runTransaction, serverTimestamp, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from './common.js?v=1.0.6';
 let user = null, allGames = {}, currentId = null, editingId = null, selectedMode = 'qr', entries = [], rewards = [], reader = null, dirty = false;
 const params = new URLSearchParams(location.search);
 const eventUrl = id => new URL('play.html?g=' + encodeURIComponent(id), location.href).href;
