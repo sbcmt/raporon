@@ -1,11 +1,11 @@
-# RapoRon v1.0 初期検証パッケージ
+# RapoRon v1.0.2 認証画面・ロゴ修正版（初期検証）
 
 対象：GitHub Pages + Firebase Authentication + Firebase Realtime Database（`rapop-ron`）。
 
 ## 導入手順
 1. `index.html`・`admin.html`・`play.html`・`js/`・`assets/`・`manifest.webmanifest`・`version.json`・`.nojekyll` をGitHub Pagesの公開対象フォルダへアップロードします。
 2. Firebase Console → Authentication → Sign-in methodで **メール/パスワード** と **匿名** を有効にします。
-3. Firebase Console → Realtime Database → ルールで **`database.rules.json` の `rules` オブジェクトの内容をまるごと貼り付けて公開** します（既存ルールは変更されます）。`database.rules.json` はGitHubへ置いてもルールとして自動適用されません。
+3. Firebase Console → **Realtime Database → ルール**で、**`database.rules.json` の最初の `{` から最後の `}` まで全文（最上位の `"rules"` キーを含む）を貼り付け、「公開」**してください（既存ルールを置き換えます）。**`firebase.json` を貼り付けないでください。** `database.rules.json` はGitHubへ置いてもルールとして自動適用されません。
 4. GitHub Pages公開URLの `admin.html` で運営アカウントを作成し、ゲームを登録します。参加者用QR/各設置QRのPDFを生成できます。
 5. 別ブラウザまたは別端末の参加者用QRから起動し、QR取得・クイズ回答、運営側の結果QR読み取りまで検証します。
 
@@ -28,3 +28,28 @@
 - Firebase RTDBルール: `database.rules.json`
 - PWA: `manifest.webmanifest`
 - 更新情報: `version.json`
+
+## Firebaseルール修正（v1.0.1）
+旧版に含まれていた `numChildren()` は Realtime Database Security Rules では使えません。
+`database.rules.json` は全設問・全地点の存在を1〜20個のキーで個別に確認するよう修正済みです。
+Firebase Console → Realtime Database → ルールにファイル全文を貼り付けて公開してください。
+`firebase.json` をルール画面に貼らないでください。
+※ Firebaseへの実接続と実機動作テストは未実施です。公開前にスタンプ未達成・回答未入力・24時間以内の再使用拒否を検証してください。
+
+## v1.0.2 修正点
+- 運営者の新規登録を独立画面に変更し、メール、パスワード、パスワード再確認を追加。
+- 管理画面へのログイン失敗時のエラーメッセージを改善。Firebaseモジュールが読み込めなかった場合の原因も表示。
+- トップ、運営管理、参加者画面のRapoRon表記を正式採用済みの文字ロゴ画像に差し替え。
+- Firebase Realtime Databaseルールは v1.0.1 のまま変更していません。再公開不要。
+
+### ログイン・新規登録に失敗する場合
+1. Firebase Console の **Authentication > ログイン方法** から「メール/パスワード」が有効か確認してください。「匿名」も参加者のために有効にします。
+2. 既にFirebase Consoleでユーザーを登録した場合は「新規登録」でなく「ログイン」を選んでください。
+3. **Authentication > 設定 > 承認済みドメイン** を確認し、アプリで認証方法に求められる場合は公開ホスト（例: `ユーザー名.github.io`）を追加してください。URL全体ではなくホスト名を追加します。
+4. 操作後に表示されるエラー文を控えてください。
+5. 更新後も旧画面が残る場合はブラウザでShift+再読み込み／新しいタブで開き直しを試してください。
+
+### 更新手順
+GitHub Pagesの既存ファイルに上書き（`assets/raporon-wordmark.png` は新規ファイル）。
+**Firebase Databaseルール：変更なし・更新不要。**
+実ブラウザでの認証成功やFirestore/Realtime Databaseへの書き込みは未検証です。

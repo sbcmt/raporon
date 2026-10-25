@@ -4,9 +4,51 @@ const eventUrl=id=>new URL('play.html?g='+encodeURIComponent(id),location.href).
 const pointUrl=(id,n,token)=>{let u=new URL(eventUrl(id));u.searchParams.set('s',n);u.searchParams.set('t',token);return u.href};
 const labelMode=m=>m==='qr'?'QRスタンプラリー':'クイズスタンプラリー';
 function notify(msg,error=false){alertBox(msg,error)};
-function showLogin(u){user=u?.providerData?.some(p=>p.providerId==='password')?u:null;show('auth-panel',!user);show('dashboard',Boolean(user));show('logout',Boolean(user));if(user)refreshList()}
-$('auth-form').addEventListener('submit',async e=>{e.preventDefault();try{await signInWithEmailAndPassword(auth,$('email').value,$('password').value)}catch(err){notify(getError(err),true)}});
-$('signup-button').addEventListener('click',async()=>{if(!confirm('このメールアドレスで運営用アカウントを作成しますか？'))return;try{await createUserWithEmailAndPassword(auth,$('email').value,$('password').value)}catch(err){notify(getError(err),true)}});
+function switchAuth(toSignup=false){
+  show('login-view',!toSignup);
+  show('signup-view',toSignup);
+  show('message',false);
+  if(toSignup && $('email').value && !$('signup-email').value) $('signup-email').value=$('email').value;
+  if(!toSignup && $('signup-email').value && !$('email').value) $('email').value=$('signup-email').value;
+}
+function showLogin(u){
+  // A participant may already have an anonymous session in this browser.
+  // Only a non-anonymous administrator is admitted to the management UI.
+  user = u && !u.isAnonymous ? u : null;
+  show('auth-panel',!user);
+  show('dashboard',Boolean(user));
+  show('logout',Boolean(user));
+  if(user){
+    show('message',false);
+    switchAuth(false);
+    refreshList();
+  }
+}
+$('auth-form').addEventListener('submit',async e=>{
+  e.preventDefault();
+  const button=$('login-button');button.disabled=true;button.textContent='ログイン中…';
+  try{
+    await signInWithEmailAndPassword(auth,$('email').value.trim(),$('password').value);
+  }catch(err){notify('ログインできません：'+getError(err),true)}
+  finally{button.disabled=false;button.textContent='ログイン'}
+});
+$('signup-button').addEventListener('click',()=>switchAuth(true));
+$('back-login').addEventListener('click',()=>switchAuth(false));
+$('signup-form').addEventListener('submit',async e=>{
+  e.preventDefault();
+  const email=$('signup-email').value.trim();
+  const password=$('signup-password').value;
+  if(password!==$('signup-confirm').value){notify('確認用パスワードが一致しません',true);return}
+  const button=$('register-button');button.disabled=true;button.textContent='登録中…';
+  try{
+    await createUserWithEmailAndPassword(auth,email,password);
+    $('email').value=email;
+    $('password').value='';
+    $('signup-password').value='';$('signup-confirm').value='';
+    notify('アカウントを作成しました。イベント管理画面を開きます');
+  }catch(err){notify('新規登録できません：'+getError(err),true)}
+  finally{button.disabled=false;button.textContent='アカウントを作成'}
+});
 $('logout').addEventListener('click',()=>signOut(auth));
 async function refreshList(){if(!user)return;try{const snap=await get(ref(db,`ownerEvents/${user.uid}`));allGames=snap.val()||{};const area=$('event-list');area.replaceChildren();const keys=Object.keys(allGames);if(!keys.length){area.textContent='まだイベントはありません。「新しいイベント」から登録してください。';return}for(const id of keys){const s=await get(ref(db,`games/${id}`));if(!s.exists())continue;let ev=s.val();const el=document.createElement('article');el.className='event-card';el.innerHTML=`<div><h3>${clean(ev.name)}</h3><p class="muted">${labelMode(ev.mode)}／${ev.count}個／終了 ${clean(dateText(ev.endsAt))}</p><p class="smalltext">ID: ${id}</p></div>`;const btn=document.createElement('button');btn.className='primary';btn.textContent='管理する';btn.onclick=()=>openTools(id);el.append(btn);area.append(el)}}catch(e){notify(getError(e),true)}}
 function blankEntry(n){return {n,token:makeId(24),question:'',choices:['','','',''],correct:1,choiceCount:4,image:null}}
@@ -78,4 +120,4 @@ $('start-scan').onclick=async()=>{if(reader||!window.Html5Qrcode)return;reader=n
 async function stopReader(){if(!reader)return;try{await reader.stop();await reader.clear()}catch{}reader=null;$('start-scan').disabled=false;$('stop-scan').disabled=true}
 $('stop-scan').onclick=stopReader;
 watchVersion(()=>dirty);
-onAuthStateChanged(auth,u=>{showLogin(u);if(u&&params.get('g')&&params.get('u'))openTools(params.get('g'))});
+onAuthStateChanged(auth,u=>{showLogin(u);if(user&&params.get('g')&&params.get('u'))openTools(params.get('g'))}, err=>notify('Firebase認証の初期化に失敗しました：'+getError(err),true));
