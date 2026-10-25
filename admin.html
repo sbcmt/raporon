@@ -1,4 +1,4 @@
-<!doctype html><html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#182e50"><title>運営管理 | RapoRon</title><link rel="icon" href="assets/favicon.ico"><link rel="apple-touch-icon" href="assets/apple-touch-icon.png"><link rel="manifest" href="manifest.webmanifest"><link rel="stylesheet" href="assets/style.css?v=1.0.6"></head><body><header class="topbar"><a href="index.html" class="brand"><img class="brand-wordmark" src="assets/raporon-wordmark.png" alt="RapoRon"><span>運営</span></a><button class="ghost small hide" id="logout">ログアウト</button></header><main class="page wide"><div id="message" class="message hide"></div><section id="auth-panel" class="panel auth">
+<!doctype html><html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#182e50"><title>運営管理 | RapoRon</title><link rel="icon" href="assets/favicon.ico"><link rel="apple-touch-icon" href="assets/apple-touch-icon.png"><link rel="manifest" href="manifest.webmanifest"><link rel="stylesheet" href="assets/style.css?v=1.0.7"></head><body><header class="topbar"><a href="index.html" class="brand"><img class="brand-wordmark" src="assets/raporon-wordmark.png" alt="RapoRon"><span>運営</span></a><button class="ghost small hide" id="logout">ログアウト</button></header><main class="page wide"><div id="message" class="message hide"></div><section id="auth-panel" class="panel auth">
   <div id="login-view">
     <h1>運営者ログイン</h1>
     <p class="muted">登録済みのメールアドレスとパスワードでログインします。</p>
@@ -36,7 +36,7 @@
   });
 </script>
 <script type="module">
-  import('./js/admin.js?v=1.0.6').catch(error => {
+  import('./js/admin.js?v=1.0.7').catch(error => {
     const el = document.getElementById('message');
     el.className = 'message error';
     el.textContent = '管理プログラムを読み込めませんでした。ページを再読み込みしてください。解消しない場合は、この詳細をお知らせください: ' + (error && error.message ? error.message : String(error));
