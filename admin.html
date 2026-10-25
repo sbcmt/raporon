@@ -27,7 +27,7 @@
     document.getElementById('login-view').classList.add('hide');
     document.getElementById('signup-view').classList.remove('hide');
     document.getElementById('message').classList.add('hide');
-    document.getElementById('signup-email').value ||= document.getElementById('email').value;
+    if (!document.getElementById('signup-email').value) document.getElementById('signup-email').value = document.getElementById('email').value;
   });
   document.getElementById('back-login').addEventListener('click', () => {
     document.getElementById('signup-view').classList.add('hide');
@@ -36,9 +36,9 @@
   });
 </script>
 <script type="module">
-  import('./js/admin.js?v=1.0.2').catch(error => {
+  import('./js/admin.js?v=1.0.3').catch(error => {
     const el = document.getElementById('message');
     el.className = 'message error';
-    el.textContent = '管理画面の読み込みに失敗しました。通信状態を確認してから再読み込みしてください。詳細: ' + (error?.message || String(error));
+    el.textContent = '管理プログラムを読み込めませんでした。ページを再読み込みしてください。解消しない場合は、この詳細をお知らせください: ' + (error && error.message ? error.message : String(error));
   });
 </script></body></html>
