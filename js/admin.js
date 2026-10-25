@@ -1,4 +1,4 @@
-import { auth, db, $, show, clean, alertBox, qrImg, makeQr, downloadDataUrl, localInputDate, dateText, makeId, getError, watchVersion, ref, get, set, push, update, onValue, runTransaction, serverTimestamp, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from './common.js?v=1.0.5';
+import { auth, db, $, show, clean, alertBox, qrImg, makeQr, downloadDataUrl, localInputDate, dateText, makeId, getError, watchVersion, ref, get, set, push, update, onValue, runTransaction, serverTimestamp, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from './common.js?v=1.0.6';
 let user = null, allGames = {}, currentId = null, editingId = null, selectedMode = 'qr', entries = [], rewards = [], reader = null, dirty = false;
 const params = new URLSearchParams(location.search);
 const eventUrl = id => new URL('play.html?g=' + encodeURIComponent(id), location.href).href;
@@ -369,8 +369,69 @@ catch (e) {
     notify(getError(e), true);
 } }
 $('back-events').onclick = () => { show('tools', false); currentId = null; refreshList(); };
-$('join-qr').onclick = () => { if (!currentId)
-    return; const url = eventUrl(currentId), el = $('join-qr-area'); el.replaceChildren(); const h = document.createElement('h3'); h.textContent = '参加者向けQR'; const img = qrImg(url); const p = document.createElement('p'); p.textContent = url; const b = document.createElement('button'); b.textContent = 'QRをPNG保存'; b.onclick = () => downloadDataUrl(img.src, 'RapoRon_参加用QR.png'); el.append(h, img, p, b); show('join-qr-area'); };
+$('join-qr').onclick = () => {
+    if (!currentId) return;
+    const url = eventUrl(currentId), el = $('join-qr-area');
+    el.replaceChildren();
+    const h = document.createElement('h3'); h.textContent = '参加用QR・ゲームID';
+    const img = qrImg(url); img.alt = '参加用QRコード';
+    const label = document.createElement('p'); label.textContent = 'ゲームID';
+    const idText = document.createElement('div'); idText.className = 'game-id-display'; idText.textContent = currentId;
+    const p = document.createElement('p'); p.className = 'join-hint muted'; p.textContent = '参加者はこのQRを読み取るか、ゲームIDを手入力して参加できます。';
+    const b = document.createElement('button'); b.className = 'secondary'; b.type = 'button'; b.textContent = 'QRをPNG保存';
+    b.onclick = () => downloadDataUrl(img.src, 'RapoRon_参加用QR.png');
+    const pdfButton = document.createElement('button'); pdfButton.className = 'primary'; pdfButton.type = 'button';
+    pdfButton.textContent = 'QR＋ゲームIDをA4 PDF保存'; pdfButton.onclick = downloadJoinSheet;
+    const buttons = document.createElement('div'); buttons.className = 'actions'; buttons.append(b, pdfButton);
+    el.append(h, img, label, idText, p, buttons);
+    show('join-qr-area');
+};
+
+function createJoinSheet(game, id) {
+    const page = document.createElement('section');
+    page.style.cssText = 'width:794px;height:1123px;background:white;color:#182e50;box-sizing:border-box;padding:50px 53px;display:flex;flex-direction:column;align-items:center;text-align:center;font-family:system-ui,"Yu Gothic",sans-serif';
+    const title = document.createElement('h1'); title.textContent = game.name || 'RapoRon';
+    title.style.cssText = 'font-size:34px;margin:0 0 14px;max-width:680px;overflow-wrap:anywhere;line-height:1.35';
+    const description = document.createElement('p'); description.textContent = '参加用QRを読み取ってゲームに参加しよう！';
+    description.style.cssText = 'font-size:24px;font-weight:800;margin:0 0 28px';
+    const qr = qrImg(eventUrl(id)); qr.alt = '参加用QR';
+    qr.style.cssText = 'display:block;width:585px;height:585px;object-fit:contain;margin:0 auto 20px';
+    const idLabel = document.createElement('p'); idLabel.textContent = 'ゲームID';
+    idLabel.style.cssText = 'font-size:23px;font-weight:800;margin:3px 0';
+    const code = document.createElement('div'); code.textContent = id;
+    code.style.cssText = 'font-size:29px;letter-spacing:.15px;font-family:ui-monospace,Consolas,monospace;font-weight:900;overflow-wrap:anywhere;word-break:break-all;line-height:1.4;max-width:680px';
+    const note = document.createElement('p'); note.textContent = '読み取れない場合は、RapoRonの参加画面で上のゲームIDを入力してください。';
+    note.style.cssText = 'font-size:19px;line-height:1.5;margin:22px 0 0';
+    const foot = document.createElement('p'); foot.textContent = 'RapoRon  ·  © 2021–2026 Dobhar-chú';
+    foot.style.cssText = 'font-size:15px;color:#63748a;margin:auto 0 0';
+    page.append(title,description,qr,idLabel,code,note,foot);
+    return page;
+}
+async function downloadJoinSheet() {
+    if (!currentId) return;
+    const button = $('join-a4');
+    if (button.disabled) return;
+    button.disabled = true;
+    let page = null;
+    try {
+        if (!window.jspdf || !window.html2canvas) throw Error('PDF生成ライブラリが読み込めません');
+        const snap = await get(ref(db, `games/${currentId}`));
+        if (!snap.exists()) throw Error('イベントが見つかりません');
+        page = createJoinSheet(snap.val(), currentId);
+        page.style.position = 'fixed'; page.style.left = '-10000px'; page.style.top = '0';
+        document.body.append(page);
+        const img = page.querySelector('img');
+        if (img.decode) await img.decode();
+        const canvas = await html2canvas(page, {backgroundColor:'#fff',scale:2,useCORS:false});
+        const pdf = new jspdf.jsPDF({unit:'mm',format:'a4',orientation:'portrait'});
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 210, 297);
+        pdf.save('RapoRon_参加案内_' + currentId + '.pdf');
+        notify('参加用QRとゲームIDをA4 PDFに保存しました');
+    } catch(e) {
+        notify('参加案内PDFを作成できません：' + getError(e), true);
+    } finally { if (page) page.remove(); button.disabled = false; }
+}
+$('join-a4').onclick = downloadJoinSheet;
 function printablePanel(title, body) { const section = document.createElement('section'); section.style.cssText = 'width:730px;min-height:1000px;background:#fff;color:#182e50;padding:50px 56px;font-family:system-ui,"Yu Gothic",sans-serif;border:2px solid #e0e6ef;box-sizing:border-box'; const h = document.createElement('h1'); h.textContent = title; h.style.cssText = 'font-size:32px;border-bottom:5px solid #e35c79;padding-bottom:20px;margin:0 0 55px'; section.append(h, body); return section; }
 $('print-pdf').onclick = async () => { if (!currentId)
     return; const button = $('print-pdf'); button.disabled = true; try {
