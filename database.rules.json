@@ -1,0 +1,167 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "games": {
+      "$gid": {
+        ".read": "auth !== null",
+        ".write": "auth !== null && auth.token.firebase.sign_in_provider === 'password' && newData.child('ownerUid').val() === auth.uid && (!data.exists() || data.child('ownerUid').val() === auth.uid)",
+        ".validate": "newData.hasChildren(['ownerUid', 'name', 'mode', 'count', 'endsAt', 'createdAt']) && newData.child('ownerUid').isString() && newData.child('name').isString() && newData.child('name').val().length > 0 && newData.child('name').val().length <= 80 && (newData.child('mode').val() === 'qr' || newData.child('mode').val() === 'quiz') && newData.child('count').isNumber() && newData.child('count').val() >= 1 && newData.child('count').val() <= 20 && newData.child('endsAt').isNumber() && newData.child('createdAt').isNumber() && newData.child('choiceCounts').exists()",
+        "ownerUid": {
+          ".validate": "newData.isString()"
+        },
+        "name": {
+          ".validate": "newData.isString()"
+        },
+        "description": {
+          ".validate": "newData.isString() && newData.val().length <= 300"
+        },
+        "mode": {
+          ".validate": "newData.val() === 'qr' || newData.val() === 'quiz'"
+        },
+        "count": {
+          ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 20"
+        },
+        "endsAt": {
+          ".validate": "newData.isNumber() && newData.val() > 0"
+        },
+        "createdAt": {
+          ".validate": "newData.isNumber() && newData.val() > 0"
+        },
+        "choiceCounts": {
+          "$num": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 4"
+          }
+        },
+        "stampImages": {
+          "$num": {
+            ".validate": "newData.isString() && newData.val().length <= 335000 && newData.val().beginsWith('data:image/webp;base64,')"
+          }
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
+    "ownerEvents": {
+      "$owner": {
+        ".read": "auth !== null && auth.uid === $owner",
+        "$gid": {
+          ".write": "auth !== null && auth.uid === $owner && auth.token.firebase.sign_in_provider === 'password' && root.child('games').child($gid).child('ownerUid').val() === $owner && newData.val() === true",
+          ".validate": "newData.val() === true"
+        }
+      }
+    },
+    "private": {
+      "$gid": {
+        ".read": "auth !== null && root.child('games').child($gid).child('ownerUid').val() === auth.uid",
+        ".write": "auth !== null && auth.token.firebase.sign_in_provider === 'password' && root.child('games').child($gid).child('ownerUid').val() === auth.uid && newData.hasChild('entries')",
+        ".validate": "newData.hasChild('entries') && newData.hasChild('ownerUid') && newData.child('ownerUid').val() === auth.uid",
+        "ownerUid": {
+          ".validate": "newData.isString()"
+        },
+        "entries": {
+          "$num": {
+            "token": {
+              ".validate": "newData.isString() && newData.val().matches(/^[a-f0-9]{48}$/)"
+            },
+            "name": {
+              ".validate": "newData.isString() && newData.val().length <= 60"
+            },
+            "question": {
+              ".validate": "newData.isString() && newData.val().length <= 300"
+            },
+            "choices": {
+              "$choice": {
+                ".validate": "newData.isString() && newData.val().length <= 120"
+              }
+            },
+            "correct": {
+              ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 4"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        },
+        "rewards": {
+          "$idx": {
+            "min": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 20"
+            },
+            "name": {
+              ".validate": "newData.isString() && newData.val().length <= 80"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
+    "stamps": {
+      "$gid": {
+        ".read": "auth !== null && root.child('games').child($gid).child('ownerUid').val() === auth.uid",
+        "$uid": {
+          ".read": "auth !== null && (auth.uid === $uid || root.child('games').child($gid).child('ownerUid').val() === auth.uid)",
+          "$num": {
+            ".write": "auth !== null && auth.uid === $uid && !data.exists() && newData.exists() && root.child('games').child($gid).child('mode').val() === 'qr' && now < root.child('games').child($gid).child('endsAt').val() && root.child('private').child($gid).child('entries').child($num).child('token').exists() && newData.child('token').val() === root.child('private').child($gid).child('entries').child($num).child('token').val()",
+            ".validate": "newData.hasChildren(['token', 'at']) && newData.numChildren() === 2 && newData.child('token').isString() && newData.child('at').val() === now",
+            "token": {
+              ".validate": "newData.isString() && newData.val().matches(/^[a-f0-9]{48}$/)"
+            },
+            "at": {
+              ".validate": "newData.isNumber()"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        }
+      }
+    },
+    "answers": {
+      "$gid": {
+        ".read": "auth !== null && root.child('games').child($gid).child('ownerUid').val() === auth.uid",
+        "$uid": {
+          ".read": "auth !== null && (auth.uid === $uid || root.child('games').child($gid).child('ownerUid').val() === auth.uid)",
+          ".write": "auth !== null && auth.uid === $uid && !data.exists() && newData.exists() && root.child('games').child($gid).child('mode').val() === 'quiz' && now < root.child('games').child($gid).child('endsAt').val()",
+          ".validate": "newData.hasChildren(['values', 'submittedAt']) && newData.numChildren() === 2 && newData.child('submittedAt').val() === now && newData.child('values').numChildren() === root.child('games').child($gid).child('count').val()",
+          "values": {
+            "$num": {
+              ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= root.child('games').child($gid).child('choiceCounts').child($num).val()"
+            }
+          },
+          "submittedAt": {
+            ".validate": "newData.isNumber()"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      }
+    },
+    "redemptions": {
+      "$gid": {
+        ".read": "auth !== null && root.child('games').child($gid).child('ownerUid').val() === auth.uid",
+        "$uid": {
+          ".read": "auth !== null && (auth.uid === $uid || root.child('games').child($gid).child('ownerUid').val() === auth.uid)",
+          ".write": "auth !== null && auth.token.firebase.sign_in_provider === 'password' && root.child('games').child($gid).child('ownerUid').val() === auth.uid && newData.exists() && (!data.exists() || data.child('lastRedeemedAt').val() + 86400000 <= now) && (root.child('answers').child($gid).child($uid).exists() && root.child('games').child($gid).child('mode').val() === 'quiz' || root.child('games').child($gid).child('mode').val() === 'qr' && root.child('stamps').child($gid).child($uid).numChildren() === root.child('games').child($gid).child('count').val())",
+          ".validate": "newData.hasChildren(['lastRedeemedAt', 'claimCount']) && newData.numChildren() === 2 && newData.child('lastRedeemedAt').val() === now && ((!data.exists() && newData.child('claimCount').val() === 1) || (data.exists() && newData.child('claimCount').val() === data.child('claimCount').val() + 1))",
+          "lastRedeemedAt": {
+            ".validate": "newData.isNumber()"
+          },
+          "claimCount": {
+            ".validate": "newData.isNumber() && newData.val() >= 1"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      }
+    }
+  }
+}
