@@ -17,3 +17,22 @@
 .topbar{position:sticky;top:0;z-index:35;min-height:65px}
 #editor{scroll-margin-top:calc(85px + env(safe-area-inset-top,0px))}
 html{scroll-padding-top:calc(85px + env(safe-area-inset-top,0px))}
+
+
+/* v1.0.6: iOS datetime-local controls have an intrinsic min width.
+   Allow every grid cell and control to shrink inside the editor card. */
+#event-form,#event-form .grid2,#event-form .grid2>label{min-width:0;max-width:100%}
+#event-form .grid2>label{width:100%;display:block}
+#event-form .grid2 input,#event-form .grid2 select,#ev-end{
+  display:block;width:100%;max-width:100%;min-width:0;box-sizing:border-box;
+}
+#ev-end{font-size:16px;padding:12px 9px}
+#ev-end::-webkit-datetime-edit{min-width:0;max-width:100%}
+#ev-end::-webkit-calendar-picker-indicator{padding:0;margin:0 0 0 3px;flex-shrink:0}
+/* Prevent iOS's intrinsic-width datetime from widening the page. */
+#editor,#editor .grid2,#editor .stack{min-width:0;max-width:100%}
+.game-id-display{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;word-break:break-all;overflow-wrap:anywhere;font-size:1.14rem;font-weight:800;color:#182e50;letter-spacing:.03em}
+.join-hint{font-size:.88rem;overflow-wrap:anywhere}
+.join-reader{margin:14px auto;max-width:430px;width:100%;min-height:0;overflow:hidden}
+.join-buttons{display:grid;gap:8px}
+@media(max-width:650px){.game-id-display{font-size:1rem}#editor{overflow-wrap:break-word}}
