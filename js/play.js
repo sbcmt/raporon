@@ -1,4 +1,4 @@
-import { auth, db, $, show, clean, alertBox, qrImg, ref, get, set, onValue, serverTimestamp, onAuthStateChanged, signInAnonymously, makeQr, watchVersion, getError } from './common.js?v=1.0.6';
+import { auth, db, $, show, clean, alertBox, qrImg, ref, get, set, onValue, serverTimestamp, onAuthStateChanged, signInAnonymously, makeQr, watchVersion, getError, validGameId } from './common.js?v=1.0.7';
 const params = new URLSearchParams(location.search);
 const gid = params.get('g'), station = Number(params.get('s')), token = params.get('t');
 let uid = null, game = null, stamps = {}, submission = null, redeem = null, busy = false, quizDraft = {}, reader = null, unsub = [];
@@ -107,7 +107,7 @@ async function cameraStop() { if (!reader)
     await reader.clear();
 }
 catch (_a) { } reader = null; show('play-reader', false); show('stop-play-scan', false); }
-async function load() { if (!gid || !/^[a-f0-9]{28}$/.test(gid)) {
+async function load() { if (!gid || !validGameId(gid)) {
     status('有効なゲームIDを指定してください', true);
     return;
 } try {

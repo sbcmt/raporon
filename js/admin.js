@@ -1,4 +1,4 @@
-import { auth, db, $, show, clean, alertBox, qrImg, makeQr, downloadDataUrl, localInputDate, dateText, makeId, getError, watchVersion, ref, get, set, push, update, onValue, runTransaction, serverTimestamp, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from './common.js?v=1.0.6';
+import { auth, db, $, show, clean, alertBox, qrImg, makeQr, downloadDataUrl, localInputDate, dateText, makeId, makeGameId, getError, watchVersion, ref, get, set, push, update, onValue, runTransaction, serverTimestamp, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from './common.js?v=1.0.7';
 let user = null, allGames = {}, currentId = null, editingId = null, selectedMode = 'qr', entries = [], rewards = [], reader = null, dirty = false;
 const params = new URLSearchParams(location.search);
 const eventUrl = id => new URL('play.html?g=' + encodeURIComponent(id), location.href).href;
@@ -261,7 +261,7 @@ $('event-form').addEventListener('submit', async (e) => {
     if (hasRewards && (!activeRewards.length || activeRewards.some(r => !r.name || !Number.isInteger(r.min) || r.min < 0 || r.min > count))) {
         return notify('景品ありの場合、景品名と条件（0〜設定数）を入力してください', true);
     }
-    const id = editingId || makeId(14);
+    let id = editingId;
     const publicGame = {
         ownerUid: user.uid,
         name,
@@ -294,7 +294,28 @@ $('event-form').addEventListener('submit', async (e) => {
     try {
         // RTDB rules require the public game to exist before the private record,
         // and both records before the owner index. Keep the same id on retry.
-        await set(ref(db, `games/${id}`), publicGame);
+        if (!id) {
+            // 新規発行時のみトランザクションで重複IDを回避する。
+            // データが存在する場合は絶対に上書きせず、別の4桁IDを発行する。
+            for (let attempt = 0; attempt < 40; attempt++) {
+                const candidate = makeGameId();
+                const result = await runTransaction(
+                    ref(db, `games/${candidate}`),
+                    current => current === null ? publicGame : undefined,
+                    { applyLocally: false }
+                );
+                if (result.committed) {
+                    id = candidate;
+                    break;
+                }
+            }
+            if (!id) throw Error('重複しないゲームIDを発行できませんでした。もう一度保存してください');
+        } else {
+            // 既存イベントの編集（従来の28桁IDにも対応）
+            await set(ref(db, `games/${id}`), publicGame);
+        }
+        // この後の保存が失敗しても同じイベントを使って再試行する。
+        editingId = id;
         await set(ref(db, `private/${id}`), privateGame);
         await set(ref(db, `ownerEvents/${user.uid}/${id}`), true);
         saved = true;
@@ -302,7 +323,7 @@ $('event-form').addEventListener('submit', async (e) => {
         dirty = false;
     } catch (err) {
         // Do not replace a partly saved event with a fresh ID on retry.
-        editingId = id;
+        if (id) editingId = id;
         notify('保存できません：' + getError(err) + '。入力内容は保持しています。', true);
     } finally {
         saveButton.disabled = false;
@@ -399,7 +420,7 @@ function createJoinSheet(game, id) {
     const idLabel = document.createElement('p'); idLabel.textContent = 'ゲームID';
     idLabel.style.cssText = 'font-size:23px;font-weight:800;margin:3px 0';
     const code = document.createElement('div'); code.textContent = id;
-    code.style.cssText = 'font-size:29px;letter-spacing:.15px;font-family:ui-monospace,Consolas,monospace;font-weight:900;overflow-wrap:anywhere;word-break:break-all;line-height:1.4;max-width:680px';
+    code.style.cssText = (id.length === 4 ? 'font-size:64px;letter-spacing:.16em;' : 'font-size:29px;letter-spacing:.15px;') + 'font-family:ui-monospace,Consolas,monospace;font-weight:900;overflow-wrap:anywhere;word-break:break-all;line-height:1.4;max-width:680px';
     const note = document.createElement('p'); note.textContent = '読み取れない場合は、RapoRonの参加画面で上のゲームIDを入力してください。';
     note.style.cssText = 'font-size:19px;line-height:1.5;margin:22px 0 0';
     const foot = document.createElement('p'); foot.textContent = 'RapoRon  ·  © 2021–2026 Dobhar-chú';

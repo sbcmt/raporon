@@ -1,7 +1,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js';
 import { getAuth, onAuthStateChanged, signInAnonymously, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js';
 import { getDatabase, ref, get, set, update, push, onValue, runTransaction, serverTimestamp, query, orderByChild, equalTo } from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-database.js';
-import { firebaseConfig, VERSION } from './config.js?v=1.0.6';
+import { firebaseConfig, VERSION } from './config.js?v=1.0.7';
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app), db = getDatabase(app);
 export { onAuthStateChanged, signInAnonymously, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, ref, get, set, update, push, onValue, runTransaction, serverTimestamp, query, orderByChild, equalTo };
@@ -17,6 +17,26 @@ else
     alert(text); };
 export const escapeCsv = v => '"' + String(v !== null && v !== void 0 ? v : '').replaceAll('"', '""') + '"';
 export function makeId(n = 14) { const b = new Uint8Array(n); crypto.getRandomValues(b); return [...b].map(v => v.toString(16).padStart(2, '0')).join(''); }
+// ゲーム参加用コード（小文字英字＋数字4文字、両方を必ず含む）。
+// 36の倍数252未満の乱数だけを採用し、文字ごとの出現率を均等にする。
+export function makeGameId() {
+    const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    for (;;) {
+        let code = '';
+        while (code.length < 4) {
+            const bytes = new Uint8Array(8);
+            crypto.getRandomValues(bytes);
+            for (const n of bytes) {
+                if (n >= 252) continue;
+                code += alphabet[n % alphabet.length];
+                if (code.length === 4) break;
+            }
+        }
+        if (/[a-z]/.test(code) && /[0-9]/.test(code)) return code;
+    }
+}
+// 以前に発行した28桁のIDも、既存イベントを壊さないため受け付ける。
+export const validGameId = id => /^(?=.*[a-z])(?=.*[0-9])[a-z0-9]{4}$/.test(id) || /^[a-f0-9]{28}$/.test(id);
 export const eventPath = id => `events/${id}`;
 export const urlFor = (filename, params = {}) => { let url = new URL(filename, location.href); Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v)); return url.href; };
 export function makeQr(value) { if (typeof qrcode !== 'function')
