@@ -1,4 +1,5 @@
-import { auth, db, $, show, clean, alertBox, qrImg, makeQr, downloadDataUrl, localInputDate, dateText, makeId, getError, watchVersion, ref, get, set, push, update, onValue, runTransaction, serverTimestamp, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from './common.js?v=1.0.6';
+import { auth, db, $, show, clean, alertBox, qrImg, makeQr, downloadDataUrl, localInputDate, dateText, makeId, getError, watchVersion, ref, get, set, push, update, onValue, runTransaction, serverTimestamp, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from './common.js?v=1.0.7';
+import { isValidGameId, reserveGameId } from './game-id.js?v=1.0.7';
 let user = null, allGames = {}, currentId = null, editingId = null, selectedMode = 'qr', entries = [], rewards = [], reader = null, dirty = false;
 const params = new URLSearchParams(location.search);
 const eventUrl = id => new URL('play.html?g=' + encodeURIComponent(id), location.href).href;
@@ -244,7 +245,9 @@ $('event-form').addEventListener('submit', async (e) => {
     const mode = $('ev-mode').value;
     if (mode === 'quiz' && entries.some(x => !x.question.trim() || x.choices.slice(0, x.choiceCount).some(c => !c.trim())))
         return notify('すべての問題文と選択肢を入力してください', true);
-    const id = editingId || makeId(14);
+    let id = editingId;
+    let reservedId = null;
+    let createdAt = null;
     const saveButton = $('save-event');
     saveButton.disabled = true;
     try {
@@ -260,6 +263,7 @@ $('event-form').addEventListener('submit', async (e) => {
             choiceCounts: {}, stampImages: {},
             createdAt: oldGame?.createdAt || Date.now()
         };
+        createdAt = publicGame.createdAt;
         const def = {
             ownerUid: user.uid,
             entries: {},
@@ -273,16 +277,52 @@ $('event-form').addEventListener('submit', async (e) => {
                 ? { token: item.token, name: item.name || '' }
                 : { question: item.question, choices: item.choices.slice(0, item.choiceCount), correct: item.correct };
         }
-        await set(ref(db, `games/${id}`), publicGame);
-        await set(ref(db, `private/${id}`), def);
-        await set(ref(db, `ownerEvents/${user.uid}/${id}`), true);
+        if (editingId) {
+            // Existing games retain their IDs (including old 28-character IDs).
+            await set(ref(db, `games/${id}`), publicGame);
+            await set(ref(db, `private/${id}`), def);
+            await set(ref(db, `ownerEvents/${user.uid}/${id}`), true);
+        } else {
+            // Atomically create only if games/{id} is absent. Concurrent creators cannot
+            // reserve the same code, even when both clients choose it at the same time.
+            id = await reserveGameId(async candidate => {
+                const result = await runTransaction(
+                    ref(db, `games/${candidate}`),
+                    current => current === null ? publicGame : undefined,
+                    { applyLocally: false }
+                );
+                return result.committed;
+            });
+            reservedId = id;
+            // The remaining two paths are saved together; neither is partially written.
+            await update(ref(db), {
+                [`private/${id}`]: def,
+                [`ownerEvents/${user.uid}/${id}`]: true
+            });
+        }
         dirty = false;
         show('editor', false);
         notify('保存しました');
         await refreshList();
         await openTools(id);
     } catch (err) {
-        notify('保存できません：' + getError(err), true);
+        let cleanupWarning = '';
+        if (reservedId) {
+            try {
+                // A failed/uncertain completion must not erase a successfully saved event.
+                const linked = await get(ref(db, `ownerEvents/${user.uid}/${reservedId}`));
+                if (!linked.exists()) {
+                    await runTransaction(ref(db, `games/${reservedId}`), current =>
+                        current?.ownerUid === user.uid && current?.createdAt === createdAt
+                            ? null : undefined,
+                        { applyLocally: false }
+                    );
+                }
+            } catch (_cleanupError) {
+                cleanupWarning = '（IDの確保記録が残った可能性があります）';
+            }
+        }
+        notify('保存できません：' + getError(err) + cleanupWarning, true);
     } finally {
         saveButton.disabled = false;
     }
@@ -477,7 +517,7 @@ function resultParts(value) { try {
     if (url.pathname.split('/').pop() !== 'admin.html')
         return null;
     const g = url.searchParams.get('g'), u = url.searchParams.get('u');
-    if (!/^[a-f0-9]{28}$/.test(g || '') || !/^[a-zA-Z0-9]{15,64}$/.test(u || ''))
+    if (!isValidGameId(g) || !/^[a-zA-Z0-9]{15,64}$/.test(u || ''))
         return null;
     return { g, u };
 }

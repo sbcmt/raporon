@@ -9,4 +9,4 @@ export const firebaseConfig = {
     appId: "1:873583091833:web:36a88bcf50b6afd645b4a8"
 };
 export const SDK = '12.11.0';
-export const VERSION = '1.0.6';
+export const VERSION = '1.0.7';
